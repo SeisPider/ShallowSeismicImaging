@@ -1,0 +1,7 @@
+*.POL
+*.csv
+*.LOG
+/Data
+/References
+/Visualization
+*.png
