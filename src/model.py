@@ -19,7 +19,7 @@ from copy import deepcopy
 import random as rnd
 
 class Model(object):
-    def __init__(self, alpha, beta):
+    def __init__(self, alpha, beta, status=None):
         """initialize the velocity model of
 
         Parameter
@@ -31,7 +31,20 @@ class Model(object):
         """
         self.alpha = alpha
         self.beta = beta
+        if status:
+            self.status = status
+    
+    def update_status(self, status):
+        """Update status after inversion
 
+        Parameter
+        =========
+        status: dict.
+           update misfit/likelihood status of this particular
+           model 
+        """
+        self.status = status
+        
     def syn_theta_psi(self, pPs, pSs):
         """Generate synthetic theta and psi based on given ray parameters
         and vp, vs
@@ -60,7 +73,7 @@ class Model(object):
         #     psis[idx] =  np.arctan2(upper, lower)
         return thetas, psis
 
-    def misfit(self, pPs, pSs, obs_theta, obs_psi, P_ws, S_ws):
+    def misfit(self, pPs, pSs, obs_theta, obs_psi, P_ws, S_ws, norm=2):
         """compute misfit between synthetic polarization direction and observed ones
     
         Parameter
@@ -89,8 +102,8 @@ class Model(object):
         syn_theta, syn_psi = np.rad2deg(syn_theta), np.rad2deg(syn_psi)
         obs_theta, obs_psi = np.rad2deg(obs_theta), np.rad2deg(obs_psi)
         
-        thetadiff, psidiff = syn_theta - obs_theta, syn_psi - obs_psi 
-        upper = P_ws * thetadiff**2 + S_ws * psidiff**2
+        thetadiff, psidiff = np.abs(syn_theta - obs_theta), np.abs(syn_psi - obs_psi) 
+        upper = P_ws * thetadiff**norm + S_ws * psidiff**norm
         lower = P_ws + S_ws
         if np.isnan(upper).all():
             return np.nan

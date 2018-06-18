@@ -24,10 +24,11 @@ from obspy import read, UTCDateTime
 from numpy.linalg import eig, norm
 
 # import matplotlib.pyplot as plt
+from obspy.signal.polarization import polarization_analysis
 
 # self-developed part
 from . import logger
-from .util import seperate_channels, theoretical_arrival
+from .util import seperate_channels, theoretical_arrival, cake_arr
 
 class Gauger(object):
     """Gauger for measuring polarization direcction
@@ -66,6 +67,24 @@ class Gauger(object):
                       'SurfAlpha': 5.8,
                       'SurfBeta' : 3.2
                     }
+        elif model_name.lower() == "iasp91":
+            # ------------------------------------------------------------------
+            # Use ak135 model
+            # ------------------------------------------------------------------
+            model = {
+                      'name'     : "iasp91",
+                      'SurfAlpha': 5.8,
+                      'SurfBeta' : 3.360
+                    }
+        elif model_name.lower() == "pwdk":
+            # ------------------------------------------------------------------
+            # Use pwdk model
+            # ------------------------------------------------------------------
+            model = {
+                      'name'     : "pwdk",
+                      'SurfAlpha': 5.8,
+                      'SurfBeta' : 3.350
+                    }
         else:
             raise Exception("Invalid model name:{} [Use prem/ak135 instead]".format(model_name))
         return model
@@ -86,7 +105,7 @@ class Gauger(object):
         """
         logger.info("Preprocessing {}@{}".format(self.staid, self.eventid))
             
-        Pst, Sst, pP, pS, Psnr, Ssnr = self.preprocessing(**kwargs)
+        Pst, Sst, pP, pS, Psnr, Ssnr, _, _, _ = self.preprocessing(**kwargs)
     
         # ----------------------------------------------------------------------
         # perform PCA
@@ -101,6 +120,11 @@ class Gauger(object):
         else:
             obs_psi, Sw = np.nan, 0
 
+        # ---------------------------------------------------------------------
+        # Set the station info.
+        # ---------------------------------------------------------------------
+        self.sac = Pst[0].stats.sac
+
         # ----------------------------------------------------------------------
         # SNR criterion
         # ----------------------------------------------------------------------
@@ -112,8 +136,9 @@ class Gauger(object):
         logger.info("Suc. Measuring {}@{}".format(self.staid, self.eventid))
         return obs_theta, obs_psi, pP, pS, Pw, Sw  
       
-    def preprocessing(self, Pwin=(-1, 2), Swin=(-1,4), noise_win=(5,10), P_freq_band=None,
-                      S_freq_band=None, desample=None, velo2disp=True):
+    def preprocessing(self, win=(-1, 2), Swin=(-1,4), noise_win=(5,10), freq_band=None,
+                      S_freq_band=None, desample=None, velo2disp=True, 
+                      phase="SKS"):
         """Preprocess the three component waveforms
     
         Parameter
@@ -159,7 +184,7 @@ class Gauger(object):
         # Import model related paramet
         # -------------------------------------------------------------------------
         model_name, SurfAlpha = self.model['name'], self.model['SurfAlpha'],
-        SurfBeta = self.model['SurfBeta']
+        # SurfBeta = self.model['SurfBeta']
     
         # -------------------------------------------------------------------------
         # construct the origin time
@@ -208,42 +233,50 @@ class Gauger(object):
             Sarr = None
         # print(Sz.plot())
         
-        # ----------------------------------------------------------------------
-        # get reference ray parameter from 1D model 
-        # ----------------------------------------------------------------------
-        _, Ptrav = theoretical_arrival(Pz, modelname=model_name, phase_list=["p"])
-        _, Stravs = theoretical_arrival(Sz, modelname=model_name, phase_list=('ttall', ))
         
-        # find the S phase
-        for idx, item in enumerate(Stravs):
-            print(item.name)
-            if item.name == "s":
-                Strav = item
-                try:
-                    right =  Stravs[idx+1].time - item.time
-                    print(Stravs[idx+1].name)
-                except: 
-                    right = None
-                
-                try:
-                    left =  Stravs[idx-1].time - item.time
-                except: 
-                    left = None
-                break
+        if not cakemodelname:
+            # ----------------------------------------------------------------------
+            # get reference ray parameter from 1D model 
+            # ----------------------------------------------------------------------
+            _, Ptrav = theoretical_arrival(Pz, modelname=model_name, phase_list=["P"])
+            _, Stravs = theoretical_arrival(Sz, modelname=model_name, phase_list=('ttall', ))
+            
+            # find the S phase
+            # print(Stravs)
+            for idx, item in enumerate(Stravs):
+                if item.name == "S":
+                    Strav = item
+                    try:
+                        right =  Stravs[idx+1].time - item.time
+                        # print(Stravs[idx+1].name)
+                        # print(right)
+                    except: 
+                        right = None
+                    
+                    try:
+                        left =  Stravs[idx-1].time - item.time
+                    except: 
+                        left = None
+                    break
+    
+            # replace the time window
+            if left:
+                lftbound = np.max([left, Swin[0]])
+                Strimwin = (lftbound, Swin[1])
+            
+            if right:
+                rightbound = np.min([right, Swin[1]])
+                Strimwin = (Strimwin[0], rightbound)
+            Swin = Strimwin
+            
+            incP, incS = np.deg2rad(Ptrav[0].incident_angle), np.deg2rad(Strav.incident_angle)
+            pP, pS = np.sin(incP) / SurfAlpha, np.sin(incS) / SurfBeta
+        else:
+            print("Use cake for ray tracing !")
+            _, pP = cake_arr(Pz, modelname=cakemodelname, phase="P")
+            _, pS = cake_arr(Pz, modelname=cakemodelname, phase="S")
 
-        # replace the time window
-        if left:
-            lftbound = np.max([left, Swin[0]])
-            Strimwin = (lftbound, Swin[1])
-        
-        if right:
-            rightbound = np.min([right, Swin[1]])
-            Strimwin = (Strimwin[0], rightbound)
-        print(Strimwin, Swin)
-        # print(Swin)
-        
-        incP, incS = np.deg2rad(Ptrav[0].incident_angle), np.deg2rad(Strav.incident_angle)
-        pP, pS = np.sin(incP) / SurfAlpha, np.sin(incS) / SurfBeta
+        # pP, pS = Ptrav[0].incident_angle
         
         # # Determine P and S wave
         # Parr, Sarr = origin + Ptrav.time, origin + Strav.time
@@ -266,18 +299,20 @@ class Gauger(object):
         # ----------------------------------------------------------------------
         # trim P and S phases
         # ----------------------------------------------------------------------
-        def trimmer(arr, lwin, st):
+        def trimmer(arr, lwin, subst):
             if arr:
-                st.trim(arr+lwin[0], arr+lwin[1]) 
+                subst.trim(arr+lwin[0], arr+lwin[1]) 
                 # print(arr, lwin, st)
             else:
-                st = None
-            return st 
+                subst = None
+            return subst 
         # trimlen = np.min([Swin[1], ScS_S])
         # Swin = (Swin[0], trimlen)
         # print(Swin)
         Pst = trimmer(Parr, Pwin, Pst)
-        Sst = trimmer(Sarr, Strimwin, Sst)
+        Pwindt =  Parr + Pwin[0], Parr + Pwin[1] 
+        Sst = trimmer(Sarr, Swin, Sst)
+        Swindt =  Sarr + Swin[0], Sarr + Swin[1] 
 
         # print("{} for {}".format(trimlen, pS))
         # if Parr:
@@ -289,22 +324,22 @@ class Gauger(object):
         #     Sst.trim(starttime=Sarr, endtime=Sarr+Slen)
         # else:
         #     Sst = None
-        
-
 
         if not Pst and not Sst:
-            return Pst, Sst, pP, pS, 0, 0
+            Psnr = Ssnr = 0
+            return Pst, Sst, pP, pS, Psnr, Ssnr, Pwindt, Swindt, st
         
-        if Strimwin[1] < Swin[1]:
-            return Pst, Sst, pP, pS, 0, 0
+        # if Strimwin[1] < Swin[1]:
+        #     Psnr = Ssnr = 0
+        #     return Pst, Sst, pP, pS, Psnr, Ssnr, Pwindt, Swindt, st
         
         # ----------------------------------------------------------------------
         # ensure means of waveforms to be zero
         # ----------------------------------------------------------------------
-        for st in [Pst, Sst]:
-            if not st:
-                continue
-            st.detrend(type="linear")
+        # for st in [Pst, Sst]:
+        #     if not st:
+        #         continue
+            # st.detrend(type="linear")
         
         # ----------------------------------------------------------------------
         # construct the Signal-noise-ratio criterion
@@ -333,7 +368,8 @@ class Gauger(object):
             Ssnr = np.abs(Sst[0].data).max() / Snoise.std()
         else:
             Ssnr = 0
-        return Pst, Sst, pP, pS, Psnr, Ssnr
+        return Pst, Sst, pP, pS, Psnr, Ssnr, Pwindt, Swindt, st
+
 
     def _polarization_analysis(self, st, wavetype="P"):
         """Perform polarization analysis
@@ -350,6 +386,7 @@ class Gauger(object):
         # construct covariance matrix S = X*X.T/N 
         # X = [q, r], denoting the vertical and radial components, sepearately
         # -------------------------------------------------------------------------
+        # st.plot()
         zdata = st[2].data
         rdata = st[0].data
         XT = np.matrix([zdata - zdata.mean(), rdata - rdata.mean()])
@@ -387,4 +424,72 @@ class Gauger(object):
             widx = np.real(w[maxidx] / w.sum())
 
         return App_Pol_Ang, widx
+    
+    def Measure_Polar_obspy(self, snr_treshd=3, slidlen=2, slidfrac=0.1, minfreq=0.001, maxfreq=None, 
+                            **kwargs):
+        """Measure theta and psi of one event-station pair
+    
+        Parameter
+        =========
+        datadir : str
+            directory of data of this staid and eventid
+        staid : str
+            station ID net.sta
+        eventid : str
+            event ID
+        snr_treshd : float
+            minimum acceptable SNR
+        """
+        logger.info("Preprocessing {}@{}".format(self.staid, self.eventid))
+            
+        Pst, Sst, pP, pS, Psnr, Ssnr, Pwindt, Swindt, st = self.preprocessing(**kwargs)
+    
+        # ----------------------------------------------------------------------
+        # Measure the polarization angle
+        # ----------------------------------------------------------------------
+        if not maxfreq:
+            # use nyquist frequency
+            maxfreq = 1.0 / (2 * st[0].stats.sampling_rate)
+
+        if Pst:
+            # this choice of azimuth is arbitary
+            st.rotate("RT->NE", back_azimuth=30)
+            starttime, endtime = Pwindt
+            result = polarization_analysis(st, slidlen, slidfrac, minfreq, maxfreq,
+                                           stime=starttime, etime=endtime, verbose=False, 
+                                           method='pm', var_noise=0.0)
+            incidence, inc_uncertainty = result['incidence'], result['incidence_error']
+            print(incidence)
+            minidx = np.array(incidence).argmin()
+            obs_theta   = np.deg2rad(incidence[minidx])
+            delta_theta = np.deg2rad(inc_uncertainty[minidx])
+        else:
+            obs_theta, delta_theta = np.nan, np.nan
+        
+        if Sst:
+            st.rotate("RT->NE", back_azimuth=30)
+            starttime, endtime = Swindt
+            result = polarization_analysis(st, slidlen, slidfrac, minfreq, maxfreq,
+                                           stime=starttime, etime=endtime, verbose=False, 
+                                           method='pm', var_noise=0.0)
+            incidence, inc_uncertainty = result['incidence'], result['incidence_error']
+            print(90 - incidence)
+            maxidx = (90 - np.array(incidence)).argmax()
+            obs_psi   = np.deg2rad(90 - incidence[maxidx])
+            delta_psi = np.deg2rad(inc_uncertainty[maxidx])
+        else:
+            obs_psi, delta_psi = np.nan, np.nan
+
+        # ----------------------------------------------------------------------
+        # SNR criterion
+        # ----------------------------------------------------------------------
+        if Psnr < snr_treshd:
+            delta_theta = 0.0
+        if Ssnr < snr_treshd:
+            delta_psi = 0.0
+
+
+
+        logger.info("Suc. Measuring {}@{}".format(self.staid, self.eventid))
+        return obs_theta, obs_psi, pP, pS, delta_theta, delta_psi  
             

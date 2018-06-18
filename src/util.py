@@ -1,6 +1,8 @@
 import numpy as np
 from obspy.taup import TauPyModel
 from obspy.io.sac import SACTrace
+from pyrocko import cake
+
 from .respider import logger
 
 def rms(x, axis=None):
@@ -40,10 +42,40 @@ def theoretical_arrival(tr, modelname="prem", phase_list=["P"]):
     # get waveforms of P and S wave based on given 1D model and time shift
     # -------------------------------------------------------------------------
     model = TauPyModel(model=modelname)
-    arr = model.get_travel_times(source_depth_in_km = evdp, 
+    arr = model.get_travel_times(source_depth_in_km = evdp / 1000, 
                                  distance_in_degree = gcarc, 
                                  phase_list=phase_list)
     return  sactr.reftime, arr
+
+# def cake_arr(tr, modelname='./taupModPrem.nd', phase="P"):
+#     """Get predicted phase arrival based the SAC trace 
+    
+#     Parameter
+#     =========
+#     tr : obspy.trace
+#         obspy trace read from SAC file
+#     modelname : str
+#         model name
+#     phase : str
+#         phase string to get arrivals
+#     """
+#     # -------------------------------------------------------------------------
+#     # construct the origin time
+#     # -------------------------------------------------------------------------
+#     sactr = SACTrace.from_obspy_trace(tr)
+#     evdp, dist = sactr.evdp, sactr.dist * 1000 * cake.m2d
+
+#     # -------------------------------------------------------------------------
+#     # get waveforms of P and S wave based on given 1D model and time shift
+#     # -------------------------------------------------------------------------
+#     model = cake.load_model(modelname)
+#     source_depth = evdp * 1000
+    
+#     # Define the phase to use.
+#     Phase = cake.PhaseDef(phase)
+#     arrival = model.arrivals(np.array([dist]), phases=Phase, zstart=source_depth)[0]
+#     # print(dist, phase, source_depth, arrival)
+#     return sactr.reftime, arrival.p/6371
 
 def import_stations(stadir):
     """Import all useable stations

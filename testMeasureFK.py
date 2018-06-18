@@ -16,7 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from src.Polarization import Gauger
 
-def syn_theta_psi(pP, pS, alpha=5.8, beta=3.2):
+def syn_theta_psi(pP, pS, alpha=5.8, beta=3.36):
     """Generate synthetic theta and psi based on given ray parameters
     and vp, vs
 
@@ -40,10 +40,15 @@ def syn_theta_psi(pP, pS, alpha=5.8, beta=3.2):
     return theta, psi
 
 
-if __name__ == '__main__':  
-    Gaug = Gauger(event_dir="./Data/testWaveforms/19950523165148", station_id="YN.PAS")
-    res = Gaug.Measure_Polar(Pwin=(0, 2), Swin=(0, 5), noise_win=(5,10), P_freq_band=None,
-                             S_freq_band=None, desample=None, velo2disp=False)
-    obs_theta, obs_psi,  pP, pS, Pw, Sw = res
-    syn_theta, syn_psi = syn_theta_psi(pP, pS, alpha=5.8, beta=3.2)
-    print(obs_theta, syn_theta, obs_psi, syn_psi)
+if __name__ == '__main__':
+    RAD2DEG = 180 / np.pi  
+    Gaug = Gauger(event_dir="/home/seispider/Tinyprojects/fk_examples/ex02/crust100/19950523000231", station_id="YN.PAS",
+                  model="ak135")
+    # res = Gaug.Measure_Polar_obspy(Pwin=(-1, 1), Swin=(-1, 5), noise_win=(5,10), P_freq_band=None,
+    #                                slidlen=4, slidfrac=0.5, S_freq_band=None, desample=None, velo2disp=False)
+    res = Gaug.Measure_Polar(Pwin=(-2, 2), Swin=(-2, 2), noise_win=(5,10), P_freq_band=None,
+                             S_freq_band=None, desample=None, velo2disp=False, 
+                             cakemodelname="taupModPrem.nd")
+    obs_theta, obs_psi,  pP, pS, unc_theta, unc_psi = res
+    syn_theta, syn_psi = syn_theta_psi(pP, pS, alpha=8.09513, beta=4.48100)
+    print(obs_theta * RAD2DEG, syn_theta * RAD2DEG, obs_psi * RAD2DEG, syn_psi * RAD2DEG)

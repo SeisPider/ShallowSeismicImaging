@@ -30,6 +30,7 @@ from . import logger
 from .model import Model
 
 EARTH_R = 6371
+KM2DEG = 111.19
 
 class PolarInv(object):
     """Invert surface velocity based on measurements of polarization angles
@@ -109,7 +110,7 @@ class PolarInv(object):
             return self._mcmc_inversion(**kwargs)
     
     def _mcmc_inversion(self, minalpha, maxalpha, minbeta, maxbeta, maxnum=5000,
-                        per=0.1, logfile="Inverted.csv"):
+                        per=0.1, logfile="Inverted.csv", norm=2):
         """Perform inversion by marcov chain monte calor method
 
         Parameter
@@ -125,13 +126,14 @@ class PolarInv(object):
         maxnum : int
             maximum number of randomly resampling
         """
+        logger.info("Perform inversion with {:2d}-norm MCMC".format(norm))
         # -------------------------------------------------------------------------
         # Definde likelihood function
         # -------------------------------------------------------------------------
         def likelihood_func(misfit):
             """compute likelihood function based on computed misfit
             """
-            return np.exp(-1.0 * misfit / 2)
+            return np.exp(-1.0 * misfit)
 
         # -------------------------------------------------------------------------
         # Obtain observation
@@ -145,24 +147,24 @@ class PolarInv(object):
         # 1. randomly generate initial model
         premodel = Model(alpha=rnd.uniform(minalpha, maxalpha), 
                          beta=rnd.uniform(minbeta, maxbeta))
+        vpbound=(minalpha, maxalpha); vsbound=(minbeta, maxbeta)
+        while not premodel.constrain(vpbound, vsbound):
+                premodel = premodel.variation(per=per)
+            
+        premisfit = premodel.misfit(pPs, pSs, obs_thetas, 
+                                    obs_psis, P_ws, S_ws, norm=norm)
+        prelikelihood = likelihood_func(premisfit)
         for idx in tqdm(range(maxnum)):
-            prelikelihood = likelihood_func(premodel.misfit(pPs, pSs, obs_thetas,
-                                            obs_psis, P_ws, S_ws))
-    
             # perform model variation and determine accept varied model or not
-            curmodel = premodel.variation(per=per)
-            vpbound=(minalpha, maxalpha); vsbound=(minbeta, maxbeta)
+            curmodel = premodel.variation(per=per)   
             while not curmodel.constrain(vpbound, vsbound):
                 curmodel = premodel.variation(per=per)
-
-            curlikelihood = likelihood_func(curmodel.misfit(pPs, pSs, obs_thetas,
-                                            obs_psis, P_ws, S_ws))
+            curmisfit = curmodel.misfit(pPs, pSs, obs_thetas,
+                                        obs_psis, P_ws, S_ws, norm=norm)
+            curlikelihood = likelihood_func(curmisfit)
     
             # metropolis slection rule 
             Paccept = curlikelihood / prelikelihood
-            # if np.isnan(Paccept):
-            #     continue
-            print(Paccept, curlikelihood)
             if Paccept >= 1:
                 moveornot = True
             elif rnd.random() < Paccept:
@@ -172,6 +174,10 @@ class PolarInv(object):
     
             # perform differently for this variation
             if moveornot:
+                status = {"misfit":curmisfit,
+                          "likelihood":curlikelihood}
+                curmodel.update_status(status=status)
+
                 # accept model
                 acc_models.append(curmodel) 
                 likelihoods.append(curlikelihood)
@@ -179,46 +185,17 @@ class PolarInv(object):
                 # reset current model to be previous model
                 premodel = curmodel
                 prelikelihood = curlikelihood
-                print("Move")
-                # curmodel = premodel.variation(per)
-            else:
-                print("Stay")
-                # curmodel = premodel.variation(per)
+
+        self.models = acc_models
+        self._statistical_analysis(logfile, minalpha, maxalpha, minbeta, maxbeta, 
+                                   pPs, pSs, obs_thetas, obs_psis, P_ws, S_ws)
         
-        # -------------------------------------------------------------------------
-        # Statistical analysis
-        # -------------------------------------------------------------------------
-        alphas, betas = np.zeros(len(acc_models)), np.zeros(len(acc_models))
-        for idx, item in enumerate(acc_models):
-            alphas[idx] = item.alpha
-            betas[idx] = item.beta
-        
-        mean_alpha, mean_beta = alphas.mean(), betas.mean()
-        std_alpha, std_beta = alphas.std(), betas.std()
-        
-        # -------------------------------------------------------------------------
-        # export results into LOG file
-        # -------------------------------------------------------------------------
-        outmat = np.matrix([alphas, betas, np.array(likelihoods)]).T
-        np.savetxt(logfile, outmat, fmt="%.5f")
-        
-        with open(logfile, "a+") as f:
-            msg = "\nMean Alpha: {}\n".format(mean_alpha)
-            msg+= "STD  Alpha: {}\n".format(std_alpha)
-            msg+= "Mean Beta: {}\n".format(mean_beta)
-            msg+= "STD  Beta: {}\n".format(std_beta)
-            f.write(msg)
-            
-        plt.hist(alphas, bins=40)
-        plt.show()
-        plt.hist(betas, bins=40)
-        plt.show()
-        return msg
+        return acc_models
 
 
     def _grid_inversion(self, minalpha, maxalpha, minbeta, maxbeta, maxnum=20,
                         grid=0.05, sample_per=0.8, logfile="Inverted.csv",
-                        processor_num=20):
+                        processor_num=20, norm=2):
         """Perform inversion by grid search and bootstrap
     
         Parameter
@@ -243,6 +220,7 @@ class PolarInv(object):
         processor_num : int
             processor number used in  multiprocessing
         """
+        logger.info("Perform inversion with {:2d}-norm Grid search".format(norm))
         pPs, pSs, obs_thetas, obs_psis, P_ws, S_ws = self._separate_measurements()
     
         # -------------------------------------------------------------------------
@@ -257,28 +235,67 @@ class PolarInv(object):
         # -------------------------------------------------------------------------
         inv_alphas, inv_betas = np.zeros(maxnum), np.zeros(maxnum)
         minmisfits, iteridx = np.zeros(maxnum), np.arange(maxnum)
+        
         # Perform multiprocessing
         comblist = list(zip(iteridx, rt(comb), rt(pPs), rt(pSs), rt(obs_thetas),
                             rt(obs_psis), rt(P_ws), rt(S_ws), rt(sample_per))) 
         pool = mp.Pool(processor_num)
-        outdicts = pool.starmap(sub_inversion, tqdm(comblist))
+        acc_models = pool.starmap(sub_inversion, tqdm(comblist))
         pool.close()
         pool.join()
         
+        self.models = acc_models
+        self._statistical_analysis(logfile, minalpha, maxalpha, minbeta, maxbeta, 
+                                   pPs, pSs, obs_thetas, obs_psis, P_ws, S_ws)
+        return acc_models
+    
+    def _statistical_analysis(self, logfile, minalpha, maxalpha, minbeta, maxbeta,
+                              pPs, pSs, obs_thetas, obs_psis, wp, ws):
+        """Analysis statistical characteristical results of inversion
+
+        Parameter
+        =========
+        logfile : str or path-like obj.
+            LOG file directory
+        minalpha : float
+            minimum vp, km/s
+        maxalpha : float
+            maximum vp, km/s
+        minbeta : float
+            minimum vs, km/s
+        maxbeta : float
+            maximum vs, km/s
+        obs_thetas : numpy.array
+            observed theta (polarization angle from incident P wave)
+        obs_psis : numpy.array
+            observed psi (polarization angle from incident S wave)
+        wp : numpy.array
+            weight for thetas in inversion
+        ws : numpy.array
+            weight for psis in inversion
+        """
+        MCMC = "likelihood" in self.models[0].status.keys()
+
         # -------------------------------------------------------------------------
-        # resolve output dictionary and statistically analyse result
+        # resolve output models and statistically analyse result
         # -------------------------------------------------------------------------
-        for idx, item in enumerate(outdicts):
-            inv_alphas[idx] = item['alpha']
-            inv_betas[idx]  = item['beta']
-            minmisfits[idx]  = item['misfit']
-        mean_alpha, mean_beta = inv_alphas.mean(), inv_betas.mean()
-        std_alpha, std_beta = inv_alphas.std(), inv_betas.std()
-        
+        N = len(self.models)
+        alphas = np.zeros(N) 
+        betas = np.zeros(N)
+        misfits = np.zeros(N)
+
+        for idx, item in enumerate(self.models):
+            alphas[idx] = item.alpha
+            betas[idx]  = item.beta
+            misfits[idx]  = item.status['misfit']
+
+        mean_alpha, mean_beta = alphas.mean(), betas.mean()
+        std_alpha, std_beta = alphas.std(), betas.std()
+
         # -------------------------------------------------------------------------
         # export results into LOG file
         # -------------------------------------------------------------------------
-        outmat = np.matrix([inv_alphas, inv_betas, minmisfits]).T
+        outmat = np.matrix([alphas, betas, misfits]).T
         np.savetxt(logfile, outmat, fmt="%.5f")
         
         with open(logfile, "a+") as f:
@@ -287,17 +304,70 @@ class PolarInv(object):
             msg+= "Mean Beta: {}\n".format(mean_beta)
             msg+= "STD  Beta: {}\n".format(std_beta)
             f.write(msg)
-        inv = {
-                 'Mean_Alpha': mean_alpha,
-                 'Mean_Beta': mean_beta,
-                 'Std_Alpha': std_alpha,
-                 'Std_Beta':  std_beta,
-               }
-        return inv
+        
+        # -------------------------------------------------------------------------
+        # export statistical result into figure
+        # -------------------------------------------------------------------------
+        nrows, ncols = 2, 3
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*6, nrows*6))
+        # print(axes)
+        axes[0,0].hist(alphas, bins=int((maxalpha-minalpha)/0.1), density=True,
+                     histtype="stepfilled")
+        axes[0,0].set_xlabel("Vp (km/s)")
+        axes[0,0].set_ylabel("Probability")
+        axes[0,0].set_title(r"$\mu$={:.2f} , $\sigma$={:.2f} (km/s)".format(mean_alpha, std_alpha))
 
+        axes[0,1].hist(betas, bins=int((maxbeta-minbeta)/0.1), density=True,
+                     histtype="stepfilled")
+        axes[0,1].set_xlabel("Vs (km/s)")
+        axes[0,1].set_ylabel("Probability")
+        axes[0,1].set_title(r"$\mu$={:.2f}, $\sigma$={:.2f} (km/s)".format(mean_beta, std_beta))
+
+        axes[0,2].plot(misfits, 'o', color="red")
+        axes[0,2].set_xlabel("Iteration number")
+        axes[0,2].set_ylabel("Misfit")
+        axes[0,2].set_title("Misfit variation")
+
+        # -------------------------------------------------------------------------
+        # export data fitness into figure
+        # -------------------------------------------------------------------------
+        model = Model(alpha=mean_alpha, beta=mean_beta)
+        thetas, psis = model.syn_theta_psi(pPs, pSs)
+
+        def init(array, value):
+            return np.equal(array, np.ones(len(array))*value)
+        
+        msk = init(wp, np.nan) + init(wp, 0)
+        axes[1,0].plot(pPs[~msk]*KM2DEG, np.rad2deg(obs_thetas[~msk]), "o",
+                       color="red", markersize=7, label="Reliable Measurement")
+        axes[1,0].plot(pPs[msk]*KM2DEG, np.rad2deg(obs_thetas[msk]), "+",
+                       markersize=5, label="Unreliable Measurement")
+        axes[1,0].plot(pPs*KM2DEG, np.rad2deg(thetas), "o", color="blue",
+                       markersize=5, label="Inverted")
+        axes[1,0].set_xlabel(r"Ray Parameter (s/deg)")
+        axes[1,0].set_ylabel(r"Measured $\bar\theta$ (deg)")
+        axes[1,0].set_title("Measurements Fitness")
+        axes[1,0].legend()
+
+        msk = init(ws, np.nan) + init(ws, 0)
+        axes[1,1].plot(pSs[~msk]*KM2DEG, np.rad2deg(obs_psis[~msk]), "o",
+                       color="red", markersize=7, label="Reliable Measurement")
+        axes[1,1].plot(pSs[msk]*KM2DEG, np.rad2deg(obs_psis[msk]), "+",
+                       markersize=5, label="Unreliable Measurement")
+        axes[1,1].plot(pSs*KM2DEG, np.rad2deg(psis), "o", color="blue",
+                       markersize=5, label="Inverted")
+        axes[1,1].set_xlabel(r"Ray Parameter (s/deg)")
+        axes[1,1].set_ylabel(r"Measured $\bar\psi$ (deg)")
+        axes[1,1].set_title("Measurements Fitness")
+        axes[1,1].legend()
+
+        filename = logfile.replace(".LOG", ".INV.png")
+        fig.savefig(filename, format="PNG")
+        
 def sub_inversion(iterid, comb, pPs, pSs, obs_thetas,obs_psis,
-                  P_ws, S_ws, sample_per):
+                  P_ws, S_ws, sample_per, norm=2):
     """grid search inversion sub-function
+    
     Parameters
     ==========
     iterid: int
@@ -335,7 +405,8 @@ def sub_inversion(iterid, comb, pPs, pSs, obs_thetas,obs_psis,
         # compute ray parameter based on given incident angle
         invmodel = Model(alpha=alpha, beta=beta) 
         misfits[grdidx] = invmodel.misfit(sub_pPs, sub_pSs, sub_obs_thetas, 
-                                          sub_obs_psis, sub_P_ws, sub_S_ws)
+                                          sub_obs_psis, sub_P_ws, sub_S_ws,
+                                          norm=norm)
         # print(beta, alpha, misfits[grdidx])
     # search for the minimum misfit
     minvalue = np.nanmin(misfits)
@@ -343,10 +414,10 @@ def sub_inversion(iterid, comb, pPs, pSs, obs_thetas,obs_psis,
     inv_alpha, inv_beta = comb[minidx]
     
     # output inversion result with dict.
-    outdict = { 
+    
+    status = { 
                 "id"    : iterid,
-                "alpha" : inv_alpha,
-                "beta"  : inv_beta,
                 "misfit": minvalue
                }
-    return outdict
+    acc_model = Model(alpha=inv_alpha, beta=inv_beta, status=status)
+    return acc_model

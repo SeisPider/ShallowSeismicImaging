@@ -16,10 +16,10 @@
 """
 if __name__ == '__main__':
     from src.inversion import PolarInv
-    Invertor = PolarInv("./YN.PAS.Reg.POL.1S")
-    # print(Invertor.inversion(method="mcmc", minalpha=0.1, maxalpha=7, minbeta=0.1, maxbeta=5,
-    #                          logfile="./YN.PAS.Reg.LOG.1S",
-    #                          maxnum=20000, per=0.1))
-    print(Invertor.inversion(minalpha=0.1, maxalpha=7, minbeta=0.1, maxbeta=5,
-                             logfile="./YN.PAS.Reg.LOG.1S",
-                             maxnum=400, sample_per=0.8))
+    Invertor = PolarInv("./YN.PAS.Reg.1S.POL")
+    Invertor.inversion(method="mcmc", minalpha=0.1, maxalpha=7, minbeta=0.1, maxbeta=5,
+                       logfile="./YN.PAS.Reg.1S.LOG",
+                       maxnum=50000, per=0.05, norm=2)
+    # print(Invertor.inversion(minalpha=0.1, maxalpha=7, minbeta=0.1, maxbeta=5,
+    #                          logfile="./YN.PAS.Reg.1S.LOG",
+    #                          maxnum=500, sample_per=0.8, norm=1))
