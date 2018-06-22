@@ -13,6 +13,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# set earth's radius
+EARTH_R = 6371
 
 __title__ = "polarPy"
 __version__ = "0.0.1"

@@ -16,7 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from src.Polarization import Gauger
 
-def syn_theta_psi(pP, pS, alpha=5.8, beta=3.36):
+def syn_theta_psi(p, alpha=5.8, beta=3.36, phase="P"):
     """Generate synthetic theta and psi based on given ray parameters
     and vp, vs
 
@@ -31,24 +31,25 @@ def syn_theta_psi(pP, pS, alpha=5.8, beta=3.36):
     beta : float
         S wave velocity for synthetic generator, km/s
     """
-    theta = 2 * np.arcsin(beta * pP)
-
-    upper = 2 * beta**2*pS * np.sqrt(1 - alpha**2*pS**2)
-    lower = alpha * (1 - 2*beta**2*pS**2)
-
-    psi =  np.arctan2(upper, lower)
-    return theta, psi
-
+    if phase == "P":
+        theta = 2 * np.arcsin(beta * p)
+        return theta
+    else:
+        upper = 2 * beta**2 * p * np.sqrt(1 - alpha**2*p**2)
+        lower = alpha * (1 - 2 * beta**2 * p**2)
+        # upper = 2 * beta**2*p * np.sqrt(1 - alpha**2*p**2)
+        # lower = alpha * (1 - 2*beta**2*p**2)
+        return np.arctan2(upper, lower)
+       
 
 if __name__ == '__main__':
     RAD2DEG = 180 / np.pi  
-    Gaug = Gauger(event_dir="/home/seispider/Tinyprojects/fk_examples/ex02/crust100/19950523000231", station_id="YN.PAS",
+    Gaug = Gauger(event_dir="/home/seispider/Desktop/NearSufaceImaging/Data/IRIS/test/IU.ANMO.0000", station_id="IU.ANMO",
                   model="ak135")
     # res = Gaug.Measure_Polar_obspy(Pwin=(-1, 1), Swin=(-1, 5), noise_win=(5,10), P_freq_band=None,
     #                                slidlen=4, slidfrac=0.5, S_freq_band=None, desample=None, velo2disp=False)
-    res = Gaug.Measure_Polar(Pwin=(-2, 2), Swin=(-2, 2), noise_win=(5,10), P_freq_band=None,
-                             S_freq_band=None, desample=None, velo2disp=False, 
-                             cakemodelname="taupModPrem.nd")
-    obs_theta, obs_psi,  pP, pS, unc_theta, unc_psi = res
-    syn_theta, syn_psi = syn_theta_psi(pP, pS, alpha=8.09513, beta=4.48100)
-    print(obs_theta * RAD2DEG, syn_theta * RAD2DEG, obs_psi * RAD2DEG, syn_psi * RAD2DEG)
+    res = Gaug.Measure_Polar(win=(0, 6), noise_win=(5,10), freq_band=(0.04, 0.5),
+                             desample=None, velo2disp=False, phase="SKS", marker="t3")
+    obs_pol, p, weight = res
+    syn_psi = syn_theta_psi(p, alpha=5.8, beta=3.36, phase="SKS")
+    print(obs_pol * RAD2DEG, syn_psi * RAD2DEG)

@@ -47,36 +47,6 @@ def theoretical_arrival(tr, modelname="prem", phase_list=["P"]):
                                  phase_list=phase_list)
     return  sactr.reftime, arr
 
-# def cake_arr(tr, modelname='./taupModPrem.nd', phase="P"):
-#     """Get predicted phase arrival based the SAC trace 
-    
-#     Parameter
-#     =========
-#     tr : obspy.trace
-#         obspy trace read from SAC file
-#     modelname : str
-#         model name
-#     phase : str
-#         phase string to get arrivals
-#     """
-#     # -------------------------------------------------------------------------
-#     # construct the origin time
-#     # -------------------------------------------------------------------------
-#     sactr = SACTrace.from_obspy_trace(tr)
-#     evdp, dist = sactr.evdp, sactr.dist * 1000 * cake.m2d
-
-#     # -------------------------------------------------------------------------
-#     # get waveforms of P and S wave based on given 1D model and time shift
-#     # -------------------------------------------------------------------------
-#     model = cake.load_model(modelname)
-#     source_depth = evdp * 1000
-    
-#     # Define the phase to use.
-#     Phase = cake.PhaseDef(phase)
-#     arrival = model.arrivals(np.array([dist]), phases=Phase, zstart=source_depth)[0]
-#     # print(dist, phase, source_depth, arrival)
-#     return sactr.reftime, arrival.p/6371
-
 def import_stations(stadir):
     """Import all useable stations
 
@@ -103,7 +73,7 @@ def seperate_channels(st, comps=["R", "T", "Z"]):
     comps : list
         channels to be seperated, [RTZ] or [ENZ]
     """
-    tr0 = st.select(component=comps[0])[0]
-    tr1 = st.select(component=comps[1])[0]
-    tr2 = st.select(component=comps[2])[0]
-    return tr0, tr1, tr2
+    trs = []
+    for comp in comps:
+        trs.append(st.select(component=comp)[0])
+    return tuple(trs)
