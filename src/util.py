@@ -1,8 +1,6 @@
 import numpy as np
 from obspy.taup import TauPyModel
 from obspy.io.sac import SACTrace
-from pyrocko import cake
-
 from .respider import logger
 
 def rms(x, axis=None):

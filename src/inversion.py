@@ -22,6 +22,7 @@ from itertools import repeat as rt
 from tqdm import tqdm
 import random as rnd
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 # third-part modulus
 import numpy as np
@@ -58,9 +59,9 @@ class PolarInv(object):
         # resolve each measurement
         # -------------------------------------------------------------------------
         data =  [] 
-        for idx, item in enumerate(lines):
+        for item in lines[2:]:
             item = item.strip()
-            source , pP, pS, obs_theta, obs_psi, P_w, S_w = item.split()
+            source, obs_theta, pP, P_w, obs_psi, pS, S_w = item.split()
             subdict = {
                         'source': source,
                         'pP':float(pP),
@@ -109,8 +110,8 @@ class PolarInv(object):
         if method == "mcmc":
             return self._mcmc_inversion(**kwargs)
     
-    def _mcmc_inversion(self, minalpha, maxalpha, minbeta, maxbeta, maxnum=5000,
-                        per=0.1, logfile="Inverted.csv", norm=2):
+    def _mcmc_inversion(self, minalpha=0.1, maxalpha=7, minbeta=0.1, maxbeta=5, 
+                        maxnum=5000, per=0.1, logfile="Inverted.csv", norm=2):
         """Perform inversion by marcov chain monte calor method
 
         Parameter
@@ -165,9 +166,7 @@ class PolarInv(object):
     
             # metropolis slection rule 
             Paccept = curlikelihood / prelikelihood
-            if Paccept >= 1:
-                moveornot = True
-            elif rnd.random() < Paccept:
+            if rnd.random() < Paccept:
                 moveornot = True
             else:
                 moveornot = False
@@ -274,7 +273,7 @@ class PolarInv(object):
         ws : numpy.array
             weight for psis in inversion
         """
-        MCMC = "likelihood" in self.models[0].status.keys()
+        # MCMC = "likelihood" in self.models[0].status.keys()
 
         # -------------------------------------------------------------------------
         # resolve output models and statistically analyse result
@@ -338,8 +337,8 @@ class PolarInv(object):
             return np.equal(array, np.ones(len(array))*value)
         
         msk = init(wp, np.nan) + init(wp, 0)
-        axes[1,0].plot(pPs[~msk]*KM2DEG, np.rad2deg(obs_thetas[~msk]), "o",
-                       color="red", markersize=7, label="Reliable Measurement")
+        axes[1,0].scatter(pPs[~msk]*KM2DEG, np.rad2deg(obs_thetas[~msk]), c=wp[~msk],
+                       alpha=0.5, cmap=cm.Greys, label="Reliable Measurement")
         axes[1,0].plot(pPs[msk]*KM2DEG, np.rad2deg(obs_thetas[msk]), "+",
                        markersize=5, label="Unreliable Measurement")
         axes[1,0].plot(pPs*KM2DEG, np.rad2deg(thetas), "o", color="blue",
@@ -350,8 +349,8 @@ class PolarInv(object):
         axes[1,0].legend()
 
         msk = init(ws, np.nan) + init(ws, 0)
-        axes[1,1].plot(pSs[~msk]*KM2DEG, np.rad2deg(obs_psis[~msk]), "o",
-                       color="red", markersize=7, label="Reliable Measurement")
+        axes[1,1].scatter(pSs[~msk]*KM2DEG, np.rad2deg(obs_psis[~msk]), c=ws[~msk],
+                       alpha=0.5, cmap=cm.Greys, label="Reliable Measurement")
         axes[1,1].plot(pSs[msk]*KM2DEG, np.rad2deg(obs_psis[msk]), "+",
                        markersize=5, label="Unreliable Measurement")
         axes[1,1].plot(pSs*KM2DEG, np.rad2deg(psis), "o", color="blue",

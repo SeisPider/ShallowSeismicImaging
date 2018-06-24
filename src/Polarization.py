@@ -287,10 +287,9 @@ class Gauger(object):
         # estimate interpolation degree index
         # ----------------------------------------------------------------------
         if App_Pol_Ang >= np.pi / 2:
-            widx = 0
+            widx = np.nan
         else:
             widx = np.real(w[maxidx] / w.sum())
-
         return App_Pol_Ang, widx
     
     def Measure_Polar_obspy(self, snr_treshd=3, slidlen=2, slidfrac=0.1, minfreq=0.001, maxfreq=None, 

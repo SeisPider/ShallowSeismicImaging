@@ -60,17 +60,7 @@ class Model(object):
         thetas = 2 * np.arcsin(self.beta * pPs)
         upper = 2 * self.beta**2*pSs * np.sqrt(1 - self.alpha**2*pSs**2)
         lower = self.alpha * (1 - 2*self.beta**2*pSs**2)
-            
         psis=  np.arctan2(upper, lower)
-        # thetas, psis = np.zeros(len(pPs)), np.zeros(len(pPs))
-        # for idx in range(len(pPs)):
-        #     pP, pS = pPs[idx], pSs[idx]
-        #     thetas[idx] = 2 * np.arcsin(self.beta * pP)
-            
-        #     upper = 2 * self.beta**2*pS * np.sqrt(1 - self.alpha**2*pS**2)
-        #     lower = self.alpha * (1 - 2*self.beta**2*pS**2)
-            
-        #     psis[idx] =  np.arctan2(upper, lower)
         return thetas, psis
 
     def misfit(self, pPs, pSs, obs_theta, obs_psi, P_ws, S_ws, norm=2):
