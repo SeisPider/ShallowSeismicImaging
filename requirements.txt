@@ -1,0 +1,10 @@
+auto_mix_prep==0.2.0
+matplotlib==3.1.1
+numba==0.45.1
+numpy==1.17.2
+obspy==1.2.1
+portion==2.1.2
+python_dateutil==2.8.2
+scikit_learn==1.0.1
+scipy==1.4.1
+tqdm==4.36.1
