@@ -8,10 +8,11 @@ Tools to imaging the shallow seismic structure, above 10 km, based on the ZH rat
 First clone this repository or download code on machine where you would like to setup.       
 
 #### - Clone the repo
-  ```
-  $ git clone https://github.com/SeisPider/ShallowSeismicImaging.git
-  $ cd ShallowSeismicImaging
-  ```
+  
+```
+$ git clone https://github.com/SeisPider/ShallowSeismicImaging.git
+$ cd ShallowSeismicImaging
+```
  
 #### - Install Python
 
@@ -21,9 +22,10 @@ First clone this repository or download code on machine where you would like to 
 [SAC](https://seiscode.iris.washington.edu/projects/sac/wiki/Binary_Installation)
 
 #### - Install requirements.txt 
- ```
-  $ pip install -r requirements.txt
-    ```
+ 
+```
+$ pip install -r requirements.txt
+```
 
 Above command will install all the dependencies of project.
 
