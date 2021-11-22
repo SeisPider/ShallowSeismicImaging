@@ -76,18 +76,16 @@ Above command will install all the dependencies of project.
 
 > :warning: **Don't change the waveform phase:** Bandpass filter first and then decimate the data.
 
-
-
 **Earthquake data for P polarization analysis:** remove instrumental response to velocity and badnpass filter 
 
 
 ## Support
 
-If you face any problem or issue in configuration or usage of poolagency  project as per the instruction documented above, Please feel free to communicate with ShallowSeismicImaging Development Team.
+If you face any problem or issue in configuration or usage of ShallowSeismicImaging  project as per the instruction documented above, Please feel free to communicate with ShallowSeismicImaging Development Team.
 
 ## Reference
 
-1. Xiao X, Cheng S, Wu J, et al. Shallow seismic structure beneath the continental China revealed by P-wave polarization, Rayleigh wave ellipticity and receiver function[J]. Geophysical Journal International, 2021, 225(2): 998-1019.
+**Xiao X**, Cheng S, Wu J, et al. Shallow seismic structure beneath the continental China revealed by P-wave polarization, Rayleigh wave ellipticity and receiver function[J]. Geophysical Journal International, 2021, 225(2): 998-1019.
 
 
 
