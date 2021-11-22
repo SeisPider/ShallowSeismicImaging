@@ -74,8 +74,8 @@ Above command will install all the dependencies of project.
 
 **Continous waveform for ZH ratio measurements:** decimate to 1Hz, remove instrumental response to velocity, badnpass filter and cut into daily segments.
 
->[!CAUTION]
->Don't change the waveform phase, especially in data decimation. Bandpass filter first and then decimate the data.
+> :warning: **Don't change the waveform phase:** Bandpass filter first and then decimate the data.
+
 
 
 **Earthquake data for P polarization analysis:** remove instrumental response to velocity and badnpass filter 
