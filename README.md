@@ -1,6 +1,6 @@
 # ShallowSeismicImaging
 
-Tools to imaging the shallow seismic structure, above 10 km, based on the ZH ratio measured from the ambient seismic noise, and P polarization from tele-seismic P wave
+Tools to image the shallow seismic structure, above 10 km, based on the ZH ratio measured from the ambient seismic noise, and P polarization from tele-seismic P wave
 
 <!-- ![poolagency logo](http://dashboard.tritontracking.com:5000/static/admin/resources/images/triton-logo.png) -->
 
@@ -46,9 +46,9 @@ Above command will install all the dependencies of project.
 │   │   ├── measured.new3.Verification    # Verification for measurement result
 │   │   ├── run.test.sh
 │   │   └── utils.py                    
-│   ├── data
+│   ├── data                              # Seismic wvaeform stored by date, with instrumental response removed to velocity
 │   │   └── getData.py
-│   └── src                               # Source code for measurement
+│   └── src                               # Source code for ZH ratio measurement
 │       ├── Noise.py
 │       ├── __init__.py
 │       ├── __pycache__
@@ -61,13 +61,25 @@ Above command will install all the dependencies of project.
 │   │   ├── Step2.MeasureP.py             # Measure P apparent polariztaion angle
 │   │   ├── Step3.PureInvertS.py          # Inversion for the Near-surface Vs 
 │   │   ├── info                          # Info. of seismic stations to measure P polarization 
-│   │   └── src
-│   └── data
+│   │   └── src                           # Source code for P polarization analysis
+│   └── data                              # Seismic wvaeform stored by event, with instrumental response removed to velocity
 │       └── getData.py
 ├── README.md
 └── requirements.txt
    
 ```
+
+## Data preprocessing
+
+
+**Continous waveform for ZH ratio measurements:** decimate to 1Hz, remove instrumental response to velocity, badnpass filter and cut into daily segments.
+
+>[!CAUTION]
+>Don't change the waveform phase, especially in data decimation. Bandpass filter first and then decimate the data.
+
+
+**Earthquake data for P polarization analysis:** remove instrumental response to velocity and badnpass filter 
+
 
 ## Support
 
