@@ -30,17 +30,15 @@ import re
 import portion as P
 from obspy import Stream
 
-plt.switch_backend("agg")
+# plt.switch_backend("agg")
 MINVALUE = 10 ** (-3)
 
 
 class Noise(object):
-    """Class to handle sseismic noise at 
-    """
+    """Class to handle sseismic noise at"""
 
     def __init__(self, stream=None, starttime=None, endtime=None, staid=None):
-        """Class to handle continous waveforms
-        """
+        """Class to handle continous waveforms"""
         if stream:
             self.stream = stream
             # Get info. from particular trace
@@ -76,9 +74,9 @@ class Noise(object):
         Parameters
         ==========
         timelen: float
-            time lenth of each slices, in second 
+            time lenth of each slices, in second
         step_rate: float
-            overlap ratio for slicing continous waveform, it's inverse should 
+            overlap ratio for slicing continous waveform, it's inverse should
             be integer
         """
         logger.info("Cut waveforms into slices with {:.5f} s".format(timelen))
@@ -116,7 +114,9 @@ class Noise(object):
         logger.info("NB of segments: {}".format(len(self.SliceWaves)))
         logger.info("Suc. slice waveforms")
 
-    def Measure_ratios(self, periods, freq_grid=0.01, nprocessor=1, startup="fork", **kwargs):
+    def Measure_ratios(
+        self, periods, freq_grid=0.01, nprocessor=1, startup="fork", **kwargs
+    ):
         """
         Parameters
         ==========
@@ -128,10 +128,10 @@ class Noise(object):
             processor number used for computation
         startup: str.
             method to start up the multiprocessing, fork or spawn
-            fork requires larger memory and is more time efficient, while spawn is 
+            fork requires larger memory and is more time efficient, while spawn is
             to the opposite
 
-        kwargs: variable args             
+        kwargs: variable args
             arguments for quant. I measurements
         """
         # Discretize the frequency band
@@ -204,19 +204,19 @@ class Noise(object):
         max_iter_nb=3,
     ):
         """Perform two criterions to select the Rayleigh-like signals
-        1.  Select signals whose phase shift between Z and R component 
+        1.  Select signals whose phase shift between Z and R component
             is near 90 deg.
-        2.  Select signals whose ratio of horizontal amplitude over the 
+        2.  Select signals whose ratio of horizontal amplitude over the
             transport one is bigger than minimum ratio
 
         Parameters
         ==========
         phase_band: tuple
-            Define the minimum and maximum acceptable phase shift for 
-            Rayleigh-like signal. Default value is None, meaning ignore 
+            Define the minimum and maximum acceptable phase shift for
+            Rayleigh-like signal. Default value is None, meaning ignore
             the first criterion
         min_ratio: float
-            the minimum H/T. Default value is None, meaning ignore 
+            the minimum H/T. Default value is None, meaning ignore
             the first criterion
         maxzh: float
             Define the maximum zh ratio bound
@@ -231,9 +231,9 @@ class Noise(object):
 
         References
         ==========
-        Tanimoto, Toshiro, Tomoko Yano, and Tomohiro Hakamata. 
-        "An approach to improve Rayleigh-wave ellipticity estimates from seismic 
-        noise: application to the Los Angeles Basin." Geophysical Journal International 
+        Tanimoto, Toshiro, Tomoko Yano, and Tomohiro Hakamata.
+        "An approach to improve Rayleigh-wave ellipticity estimates from seismic
+        noise: application to the Los Angeles Basin." Geophysical Journal International
         193.1 (2013): 407-420.
         """
         # Save constrain parameters
@@ -285,20 +285,20 @@ class Noise(object):
         torefine, iter_nb = True, 0
         while torefine:
             discard_nb = 0
-            iter_nb += 1
+            if iter_nb >= max_iter_nb:
+                break
             # Discard ZH ratios those locate outside the 3*sigma area
             for tidx, item in enumerate(self.RayZH):
                 # loop over discretized frequency band
                 for idx, value in enumerate(item):
-                    if np.abs(value - meanZHs[idx]) >= 2 * stdZHs[idx]:
+                    if np.abs(value - meanZHs[idx]) >= 3 * stdZHs[idx]:
                         self.RayZH[tidx][idx] = np.nan
                         self.SAVEDPHI[tidx][idx] = np.nan
                         self.SAVEDAZ[tidx][idx] = np.nan
                         discard_nb += 1
             meanZHs, stdZHs = self.get_ZHratio(bin=bin)
             # Jump out condition
-            if iter_nb >= max_iter_nb:
-                break
+            iter_nb += 1
             if discard_nb == 0:
                 break
 
@@ -311,7 +311,7 @@ class Noise(object):
         )
 
     def _phase_criterion(self, min_phase_shift=30, max_phase_shift=150):
-        """Perform the first criterion, selecting signals where the 
+        """Perform the first criterion, selecting signals where the
         phase shift between Z and R component is near 90 deg.
 
         Parameters
@@ -323,7 +323,7 @@ class Noise(object):
         """
 
         def inner_phase(item, min_phase, max_phase):
-            """return whether the value is enclosed in (min_phase, max_phase) 
+            """return whether the value is enclosed in (min_phase, max_phase)
             or not
             """
             # phase_shift = np.nan_to_num(np.rad2deg(-1.0 * np.angle(item)))
@@ -333,11 +333,11 @@ class Noise(object):
                 if self.positive == -1.0:
                     msk[idx] = (x >= -1 * max_phase) * (x <= -1 * min_phase)
                 elif self.positive == 1.0:
-                    msk[idx] = (x <=  max_phase) * (x >= min_phase)
+                    msk[idx] = (x <= max_phase) * (x >= min_phase)
                 elif self.positive == 2.0:
                     tmp1 = (x >= -1 * max_phase) * (x <= -1 * min_phase)
-                    tmp2 = (x <=  max_phase) * (x >= min_phase)
-                    msk[idx] = tmp1 + tmp2 
+                    tmp2 = (x <= max_phase) * (x >= min_phase)
+                    msk[idx] = tmp1 + tmp2
             return msk
 
         msk1ZH = [
@@ -346,9 +346,9 @@ class Noise(object):
         return msk1ZH
 
     def _HTratio_criterion(self, min_ratio=3):
-        """Perform the second criterion, selecting signals where the 
-        wavforms is dominated by Rayleigh-like waves where the ratio 
-        of horizontal amplitude over transport amplitude is bigger 
+        """Perform the second criterion, selecting signals where the
+        wavforms is dominated by Rayleigh-like waves where the ratio
+        of horizontal amplitude over transport amplitude is bigger
         than minimum ratio
 
         Parameters
@@ -372,7 +372,7 @@ class Noise(object):
         azlogfile=None,
         only_stalog=False,
     ):
-        """Export the measured ZH ratio, HTratio and statistical 
+        """Export the measured ZH ratio, HTratio and statistical
         ZH ratios into log file
 
         Parameters
@@ -380,14 +380,14 @@ class Noise(object):
         zhlogfile: str or path-like obj.
             LOG file path dirname to save zh ratios
         htlogfile: str or path-like obj.
-            LOG file path dirname to save ht ratios   
+            LOG file path dirname to save ht ratios
         stalogfile: str or path-like obj.
-            LOG file path dirname to save mean and std of ZH ratios 
+            LOG file path dirname to save mean and std of ZH ratios
         phlogfile: str or path-like obj.
-            LOG file path dirname to save phase difference between 
-            horizontal and vertical components            
+            LOG file path dirname to save phase difference between
+            horizontal and vertical components
         azlogfile: str or path-like obj.
-            LOG file path dirname to save back-azimuth            
+            LOG file path dirname to save back-azimuth
         """
 
         def exfmt(x):
@@ -498,7 +498,7 @@ class Noise(object):
         Parameters
         ==========
         visual_period_band: list or numpy array
-            period band to visualize its measurements and criterions, default 
+            period band to visualize its measurements and criterions, default
             to be None which means visualize all freqeuency in self.periods. If given,
             the list or numpy array must be subset of self.periods.
         prefix: str
@@ -524,7 +524,7 @@ class Noise(object):
             # We can also set the file's metadata via the PdfPages object:
             d = pdf.infodict()
             d["Title"] = "ZH ratios"
-            d["Author"] = u"Xiao Xiao"
+            d["Author"] = "Xiao Xiao"
             d["Keywords"] = "ZH ratio measurements"
             d["CreationDate"] = datetime.datetime(2018, 10, 13)
 
@@ -601,13 +601,17 @@ class Noise(object):
             )
             fac = self.positive
             if self.positive == -1:
-                axes[1].axvline(x=-1 * self.phase_band[0], color="r", label="Phase Band")
+                axes[1].axvline(
+                    x=-1 * self.phase_band[0], color="r", label="Phase Band"
+                )
                 axes[1].axvline(x=-1 * self.phase_band[1], color="r")
             elif self.positive == 1:
                 axes[1].axvline(x=self.phase_band[0], color="r", label="Phase Band")
                 axes[1].axvline(x=self.phase_band[1], color="r")
             elif self.positive == 2:
-                axes[1].axvline(x=-1 * self.phase_band[0], color="r", label="Phase Band")
+                axes[1].axvline(
+                    x=-1 * self.phase_band[0], color="r", label="Phase Band"
+                )
                 axes[1].axvline(x=-1 * self.phase_band[1], color="r")
                 axes[1].axvline(x=self.phase_band[0], color="r", label="Phase Band")
                 axes[1].axvline(x=self.phase_band[1], color="r")
@@ -688,6 +692,7 @@ class Noise(object):
         bin: float
             azimuth bin in stacking
         """
+
         # Obtain all measurements and associated bazs
         def gfilter(x):
             return x[~np.isnan(x)]
@@ -733,6 +738,7 @@ class Noise(object):
         header: bool
             determine the log file contains the header info. or not
         """
+
         # Check existence of class attribute
         def attrexistornot(classname, attrname):
             if not hasattr(classname, attrname):
@@ -785,8 +791,7 @@ class Noise(object):
             self.AZ.append(az[idx])
 
     def _import_value(self, logfile, header=True):
-        """Import zh/ht ratio or dphi from log file
-        """
+        """Import zh/ht ratio or dphi from log file"""
         # set if the log file include the ratio or not
         if header:
             startidx = 4
@@ -818,8 +823,7 @@ class Noise(object):
 
 
 class NoiseSlice(object):
-    """Class to handle seismic noise during a time slice
-    """
+    """Class to handle seismic noise during a time slice"""
 
     def __init__(self, starttime, endtime):
         """Define the Noise records
@@ -865,14 +869,14 @@ class NoiseSlice(object):
         offset: float
             second treshold for detecting earthquake
         earthquake_minfreq: float
-            minimal frequency for filtering waveform 
+            minimal frequency for filtering waveform
             in earthquake detection
         earthquake_maxfreq: float
-            maximum frequency for filtering waveform 
+            maximum frequency for filtering waveform
             in earthquake detection
         treshold: float
             the maximum energy ratio of E N component.
-            For detecting instrumental response 
+            For detecting instrumental response
             constant mismatch
         """
         # Trim slices waveforms
@@ -903,23 +907,35 @@ class NoiseSlice(object):
             N, E, Z = seperate_channels(st, comps=["1", "2", "Z"])
         except Exception as err:
             raise ValueError("Unkown component")
+        # Preprocess the raw seismic data, including Detrend, Taper and Filter
+        for tr in [N, E, Z]:
+            tr.detrend("simple")
+            tr.taper(max_percentage=0.05)
+            tr.filter(
+                "bandpass",
+                freqmin=(1.0 / periods.max() - grid),
+                freqmax=(1.0 / periods.min() + grid),
+                zerophase=True,
+            )
 
         # Event detection and elimination
         event_st = deepcopy(rawst)
         event_st.trim(
             starttime=self.starttime - long_time,
             endtime=self.endtime,
-            pad=True,
-            fill_value=0.0,
         )
         event_st.merge(fill_value="interpolate")
 
+        # preprocess
+        event_st.detrend("simple")
+        event_st.taper(max_percentage=0.05)
         event_st.filter(
             "bandpass",
             freqmin=earthquake_minfreq,
             freqmax=earthquake_maxfreq,
             corners=4,
         )
+        # event_st[0].write("test.sac")
         # Decompose stream
         EN, EE, EZ = seperate_channels(event_st, comps=["N", "E", "Z"])
 
@@ -1023,10 +1039,25 @@ class NoiseSlice(object):
             # Estimate HT ratio
             HT[idx] = np.abs(Hitem) / np.abs(Titem)
 
-            # if debug:
-            #    if HT[idx] > 3 and DPHI[idx] >= 60 and DPHI[idx] <= 120:
-            #        print("Z:", np.abs(Zinter).mean(), "H:", np.abs(max_H).mean(), "ZH:", ZH[idx])
-            #        print("AZ:", AZ[idx], "T:", np.abs(min_H).mean(), "HT:", HT[idx])
+            if debug:
+                if (
+                    HT[idx] > 3
+                    and DPHI[idx] >= 60
+                    and DPHI[idx] <= 120
+                    and ZH[idx] < 0.5
+                ):
+                    # print("Z:", np.abs(Zinter).mean(), "H:", np.abs(max_H).mean(), "ZH:", ZH[idx])
+                    print("AZ:", AZ[idx], "T:", np.abs(min_H).mean(), "HT:", HT[idx])
+                    # plt.plot(E.filter("bandpass", freqmin=0.1, freqmax=0.3, zerophase=True).data)
+                    # plt.plot(N.filter("bandpass", freqmin=0.1, freqmax=0.3, zerophase=True).data)
+                    # plt.plot(Z.filter("bandpass", freqmin=0.1, freqmax=0.3, zerophase=True).data)
+                    plt.plot(E.data)
+                    plt.plot(N.data)
+                    plt.plot(Z.data)
+                    plt.show()
+
+                    # st.plot()
+                    # event_st.plot()
         return ZH, HT, DPHI, AZ
 
 
@@ -1044,7 +1075,7 @@ def sub_func(
     Parameters
     ==========
     subslice: NoiseSlice obj.
-        slice to compute its ZH ratio over all 
+        slice to compute its ZH ratio over all
         frequency band
     rawst: obspy.Stream class
         raw seismic continuous waveform
@@ -1072,8 +1103,7 @@ def sub_func(
 
 
 def sub_slice(idx, gaps=None, timepoints=None, step=None, timelen=None):
-    """Judge if the time period 
-    """
+    """Judge if the time period"""
     startt, endt = timepoints[idx], timepoints[idx + step]
 
     # Check overlap of target time period and the gaps
