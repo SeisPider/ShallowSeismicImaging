@@ -197,7 +197,7 @@ class Noise(object):
         self,
         phase_band=None,
         min_ratio=None,
-        positive=False,
+        positive=None,
         maxzh=4,
         minzh=0,
         bin=1,
@@ -224,8 +224,10 @@ class Noise(object):
             Define the minimum zh ratio bound
         bin: float
             bin for stacking
-        positive: float
-            positive indicates the retroidal partical motion
+        positive: int
+            -1 indicate range in (-maxPhase, -minPhase)
+            1 indicate range in (minPhase, maxPhase)
+            2 indicate range in (-maxPhase, -minPhase) and (minPhase, maxPhase)
 
         References
         ==========
@@ -237,10 +239,7 @@ class Noise(object):
         # Save constrain parameters
         self.phase_band, self.min_ratio = phase_band, min_ratio
         self.minzh, self.maxzh = minzh, maxzh
-        if positive:
-            self.positive = 1
-        else:
-            self.positive = -1
+        self.positive = positive
 
         if phase_band:
             min_phase_shift, max_phase_shift = phase_band
@@ -330,12 +329,15 @@ class Noise(object):
             # phase_shift = np.nan_to_num(np.rad2deg(-1.0 * np.angle(item)))
             item = np.nan_to_num(item)
             msk = np.zeros_like(item)
-            fac = self.positive
             for idx, x in enumerate(item):
-                if fac == -1.0:
-                    msk[idx] = (x >= fac * max_phase) * (x <= fac * min_phase)
-                else:
-                    msk[idx] = (x <= fac * max_phase) * (x >= fac * min_phase)
+                if self.positive == -1.0:
+                    msk[idx] = (x >= -1 * max_phase) * (x <= -1 * min_phase)
+                elif self.positive == 1.0:
+                    msk[idx] = (x <=  max_phase) * (x >= min_phase)
+                elif self.positive == 2.0:
+                    tmp1 = (x >= -1 * max_phase) * (x <= -1 * min_phase)
+                    tmp2 = (x <=  max_phase) * (x >= min_phase)
+                    msk[idx] = tmp1 + tmp2 
             return msk
 
         msk1ZH = [
@@ -598,8 +600,18 @@ class Noise(object):
                 "Phase shifts of all segments @{:.5f}s".format(self.periods[periodidx])
             )
             fac = self.positive
-            axes[1].axvline(x=fac * self.phase_band[0], color="r", label="Phase Band")
-            axes[1].axvline(x=fac * self.phase_band[1], color="r")
+            if self.positive == -1:
+                axes[1].axvline(x=-1 * self.phase_band[0], color="r", label="Phase Band")
+                axes[1].axvline(x=-1 * self.phase_band[1], color="r")
+            elif self.positive == 1:
+                axes[1].axvline(x=self.phase_band[0], color="r", label="Phase Band")
+                axes[1].axvline(x=self.phase_band[1], color="r")
+            elif self.positive == 2:
+                axes[1].axvline(x=-1 * self.phase_band[0], color="r", label="Phase Band")
+                axes[1].axvline(x=-1 * self.phase_band[1], color="r")
+                axes[1].axvline(x=self.phase_band[0], color="r", label="Phase Band")
+                axes[1].axvline(x=self.phase_band[1], color="r")
+
             axes[1].legend()
 
             # Depict all saved azimuth and azimuth stacking illustration if applied
